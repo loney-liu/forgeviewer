@@ -57,13 +57,17 @@ def ami_endpoint():
 def process_versions():
   return request.form
 
+@app.route("/", methods = ['GET', 'POST'])
+def home():
+  return render_template('%s.html' % 'index')
+
 @app.route("/<string:page_name>", methods = ['GET', 'POST'])
 def no_urn_1(page_name):
-  return "Please input Forge URN"
+  return render_template('%s.html' % 'index')
 
 @app.route("/<string:page_name>/", methods = ['GET', 'POST'])
 def no_urn_2(page_name):
-  return "Please input Forge URN"
+  return render_template('%s.html' % 'index')
 
 @app.route("/forge_viewer/<string:forge_urn>", methods = ['GET', 'POST'])
 def forge_viewer(forge_urn):
