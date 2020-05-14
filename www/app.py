@@ -18,9 +18,9 @@ UPLOAD_FOLDER = 'upload_dir/'
 
 # ---- Shotgun API
 
-SERVER_PATH = "https://koreaaec.shotgunstudio.com"
-SCRIPT_NAME = 'forge_api'     
-SCRIPT_KEY = "ob)fkshhH6wnodqykuvjazcyw"
+SERVER_PATH = "https://your_site.shotgunstudio.com"
+SCRIPT_NAME = 'your_script_name'     
+SCRIPT_KEY = "your_key"
 
 sg = Shotgun(SERVER_PATH, SCRIPT_NAME, SCRIPT_KEY)
 
@@ -30,7 +30,7 @@ sg = Shotgun(SERVER_PATH, SCRIPT_NAME, SCRIPT_KEY)
 # demo-specific values
 
 # must be of the form  [-_.a-z0-9]{3,128}
-FORGE_BUCKET_NAME = "sg_forge_demo"
+FORGE_BUCKET_NAME = "your_forge_bucket"
 
 ################################################################################
 # Forge endpoints
@@ -38,8 +38,8 @@ FORGE_BUCKET_NAME = "sg_forge_demo"
 # base url
 FORGE_DEV_SITE = "https://developer.api.autodesk.com"
 
-client_id = 'dwpRPnV14An6mHOi7GEmRmfmSiVC8xbs'      # TODO
-client_secret = 'Fd9fbf388c21a4e3'  # TODO
+client_id = 'Your Forge ID'      # TODO
+client_secret = 'Your Forge Secret'  # TODO
 
 # functional endpoints
 FORGE_AUTHENTICATION = FORGE_DEV_SITE + "/authentication/v1/authenticate"
