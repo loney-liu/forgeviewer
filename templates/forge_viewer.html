@@ -1,0 +1,142 @@
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <!-- The Viewer JS -->
+    <script
+        src="https://code.jquery.com/jquery-3.3.1.min.js"
+        integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+        crossorigin="anonymous"></script>
+    <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
+
+    <!-- The Viewer CSS -->
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/style.min.css" type="text/css">
+    <!-- Developer CSS -->
+    <style>
+        body {
+            margin: 0;
+        }
+        #MyViewerDiv {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background-color: #F0F8FF;
+        }
+        .show-env-bg-button {
+          background: red;
+        }
+        .hide-env-bg-button {
+          background: blue;
+        }
+        .myAwesomeExtensionIcon {
+            background-size: 24px;
+            background-image: url('/static/images/shotgun.png');
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+    </style>
+  </head>
+  <body>
+      <!-- The Viewer will be instantiated here -->
+      <div id="forgeViewer"></div>
+      <input type="hidden" value="{{ forge_urn }}" id="forge_urn" name="forge_urn">
+      <script src="{{ url_for('static', filename='js/MyExtensionFileName.js') }}"></script>
+      <script>
+
+            sg_shot_url = "{{ sg_site }}"
+            sg_script = '{{ sg_script }}'     
+            sg_key = "{{ sg_key }}"      
+
+            var viewer;
+            var urn = "{{ forge_urn }}"
+            var ids = "{{ ids }}"
+            console.log("urn:", urn)
+            console.log("objects:", ids)
+            if (ids != ""){
+              ids = ids.split(",");
+            }
+  
+            console.log(ids)
+            launchViewer (urn, ids)
+            
+            function launchViewer(urn, ids) {
+                var options = {
+                  env: 'AutodeskProduction',
+                  getAccessToken: function(onGetAccessToken) {
+                    // get the forge access token from the local test server
+                    // NOTE: there is a lack of proper authentication here. You'll
+                    // need to consider where and how you might run code like this.
+                    // You should never expose access tokens on a non secure
+                    // connection or on a non-private network.
+                    var expireTimeSeconds = 86400;
+                    var local_test_server = "{{ forge_site }}/token";
+                    var request = new XMLHttpRequest();
+                    request.open('GET', local_test_server, true);
+                    request.send();
+                    request.onreadystatechange = function () {
+                        if (request.readyState === 4 && request.status === 200) {
+                            onGetAccessToken(request.responseText, expireTimeSeconds);
+                        }
+                    }
+                    console.log(request.content)
+                }
+              };
+              
+              Autodesk.Viewing.Initializer(options, () => {
+                viewer_options = {
+                  disabledExtensions: {
+                    layermanage:true,
+                    explode:true,
+                    section:true,
+                    bimwalk:true,
+                    fusionOrbit:true
+                  },
+                  extensions: [
+                    "Autodesk.Viewing.MarkupsCore", 
+                    "Autodesk.Viewing.MarkupsGui",
+                    'MyAwesomeExtension'
+                  ]
+                }
+                
+                viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById('forgeViewer'),viewer_options);
+
+                // viewer.registerViewer(viewer.k3D, Autodesk.Viewing.Private.GuiViewer3D, { extensions: ['MyAwesomeExtension'] });
+                viewer.start();
+                var documentId = 'urn:' + urn;
+                Autodesk.Viewing.Document.load(documentId, onDocumentLoadSuccess, onDocumentLoadFailure);
+              });
+            }
+  
+            function onDocumentLoadSuccess(doc) {
+  
+              console.log("load succuss")
+              var viewables = doc.getRoot().getDefaultGeometry();
+              console.log("objectids:", ids)
+  
+              if (ids != ""){
+                console.log("objectid:", ids)
+                model_options = {
+                  skipPropertyDb: true,
+                  ids: ids
+                }
+                viewer.loadDocumentNode(doc, viewables, model_options).then(i => {
+                  console.log(viewables)
+                  // documented loaded, any action?
+                });
+              }
+              else{
+                viewer.loadDocumentNode(doc, viewables).then(i => {
+                  console.log(viewables)
+                  // documented loaded, any action?
+                });
+              }
+                
+            }
+  
+            function onDocumentLoadFailure(viewerErrorCode) {
+              console.error('onDocumentLoadFailure() - errorCode:' + viewerErrorCode);
+            }
+      </script>
+   </body>
+</html>

@@ -1,0 +1,41 @@
+
+<!doctype html>
+<title>Uploaded the file</title>
+<head>
+    <!-- <script type="text/javascript" src="//code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script> -->
+</head>
+<body>
+	<h2> <font color="green">{{ filename }}</font> is uploaded. Transcoding .... </h2>
+	<h3><font color="red">Please wait for a while to run Shotgun AMI </font></h3>
+	<h3> Forge URN: <font color="blue">{{ forge_urn }} </font> </h3>
+	<!-- <input type="hidden" name="forge_urn" id="forge_urn" value="{{ forge_urn }}"> -->
+	<!-- <div id="log"> -->
+	</div> <!-- /#log -->
+
+	<script>
+		// $.support.cors = true;
+		// $(document).ready(function(){
+		// 	//connect to the socket server.
+		// 	var socket = io.connect('http://' + document.domain + ':' + location.port + '/update_forge_status');
+		// 	console.log(socket)
+		// 	var numbers_received = [];
+		// 	var forge_urn = document.getElementById('forge_urn').value
+		// 	console.log(forge_urn)
+		// 	//receive details from server
+		// 	socket.on('newnumber', function(msg) {
+		// 		console.log("Received number " + msg.number + ' ' + msg.time);
+		// 		//maintain a list of ten numbers
+		// 		if (numbers_received.length >= 10){
+		// 			numbers_received.shift()
+		// 		}            
+		// 		numbers_received.push(msg.time + ' - '+ ' ' + forge_urn +': ' + msg.number);
+		// 		numbers_string = '';
+		// 		for (var i = 0; i < numbers_received.length; i++){
+		// 			numbers_string = numbers_string + '<p>' + numbers_received[i].toString() + '</p>';
+		// 		}
+		// 		$('#log').html(numbers_string);
+		// 	});
+		// });
+	</script>
+</body>
