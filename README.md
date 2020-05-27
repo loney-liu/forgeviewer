@@ -21,20 +21,20 @@ https://{ your site }/upload
 - Create URL Page
 
 ##### Asset
-- https://desolate-beach-90284.herokuapp.com/forge_viewer/{sg_forge_urn}
+- https://{ your site }/forge_viewer/{sg_forge_urn}
 
 ##### Anotation
-- https://desolate-beach-90284.herokuapp.com/forge_viewer_snap/{sg_forge_urn}/{id}
+- https://{ your site }/forge_viewer_snap/{sg_forge_urn}/{id}
 
 #### Create AMI for Asset and Task
 
 ##### Asset
-- https://desolate-beach-90284.herokuapp.com/sg_asset
-- https://desolate-beach-90284.herokuapp.com/forge_viewer_snap
-- https://desolate-beach-90284.herokuapp.com/review_notes
+- https://{ your site }/sg_asset
+- https://{ your site }/forge_viewer_snap
+- https://{ your site }/review_notes
 
 ##### Task
-- https://desolate-beach-90284.herokuapp.com/view_parts
+- https://{ your site }/view_parts
 
 # Flask Docker Forge Viewer （Python 3）
 
