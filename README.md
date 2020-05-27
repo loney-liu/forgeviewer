@@ -7,7 +7,7 @@
 - revit
 
 ### Upload a model to Forge to get Forge URN
-https://{ your site }/upload
+https://your_website_url/upload
 
 ### Create Fields
 
@@ -21,20 +21,20 @@ https://{ your site }/upload
 - Create URL Page
 
 ##### Asset
-- https://{ your site }/forge_viewer/{sg_forge_urn}
+- https://your_website_url/forge_viewer/{sg_forge_urn}
 
 ##### Anotation
-- https://{ your site }/forge_viewer_snap/{sg_forge_urn}/{id}
+- https://your_website_url/forge_viewer_snap/{sg_forge_urn}/{id}
 
 #### Create AMI for Asset and Task
 
 ##### Asset
-- https://{ your site }/sg_asset
-- https://{ your site }/forge_viewer_snap
-- https://{ your site }/review_notes
+- https://your_website_url/sg_asset
+- https://your_website_url/forge_viewer_snap
+- https://your_website_url/review_notes
 
 ##### Task
-- https://{ your site }/view_parts
+- https://your_website_url/view_parts
 
 # Flask Docker Forge Viewer （Python 3）
 
