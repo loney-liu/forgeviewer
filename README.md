@@ -41,3 +41,9 @@ https://{ your site }/upload
 - Install docker, docker-compose
 
 - git clone https://github.com/loney-liu/forge_viewer
+
+# References
+
+- [Learn Autodesk Forge](https://learnforge.autodesk.io/#/)
+- [Shotgun Python API](https://developer.shotgunsoftware.com/python-api/)
+- [Shotgun REST API](https://developer.shotgunsoftware.com/rest-api/)
