@@ -12,44 +12,53 @@ from shotgun_api3 import Shotgun
 import requests
 from werkzeug.utils import secure_filename
 from datetime import timedelta
-import logging
-import logging.config
+import logging, logging.config
+import yaml
 from logging import StreamHandler
 from flask_socketio import SocketIO, emit
 from random import random
 from threading import Thread, Event
+
+################################################################################
+################      Initialize and Setup           ###########################
+################################################################################
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode=None, logger=True, engineio_logger=True)
 ALLOWED_EXTENSIONS = set(['obj', 'rvt'])
 UPLOAD_FOLDER = 'upload_dir/'
 
+with open(r'./configure.yml') as file:
+    # The FullLoader parameter handles the conversion from YAML
+    # scalar values to Python the dictionary format
+    configure = yaml.load(file, Loader=yaml.FullLoader)
 
-# ---- Shotgun API
+    print("config: ",configure, flush=True)
 
-SERVER_PATH = "YOUR_SHOTGUN_SITE"
-SCRIPT_NAME = 'YOUR_SHOTGUN_SCRIPT_NAME'     
-SCRIPT_KEY = "YOUR_SHOTGUN_SCRIPT_KEY"
+################################################################################
+################      Shotgun setup and endpoints    ###########################
+################################################################################
+
+SERVER_PATH = configure['shotgun']['site']['shotgun_site']
+SCRIPT_NAME = configure['shotgun']['site']['script_name']     
+SCRIPT_KEY = configure['shotgun']['site']['script_key']
 
 sg = Shotgun(SERVER_PATH, SCRIPT_NAME, SCRIPT_KEY)
 
-# ---- FORGE URLs
-
+################################################################################
+################        Forge setup and endpoints    ###########################
 ################################################################################
 # demo-specific values
 
 # must be of the form  [-_.a-z0-9]{3,128}
-FORGE_BUCKET_NAME = "YOUR_FORGE_BUCKET"
-
-################################################################################
-# Forge endpoints
+FORGE_BUCKET_NAME = configure['forge']['config']['bucket_name']
 
 # base url
-FORGE_SITE = "YOUR_WEB_SITE"
-FORGE_DEV_SITE = "https://developer.api.autodesk.com"
+FORGE_SITE = configure['forge']['site']['forge_site']
+FORGE_DEV_SITE = configure['forge']['site']['forge_dev_site']
 
-client_id = 'YOUR_FORGE_ID'      # TODO
-client_secret = 'YOUR_FORGE_KEY'  # TODO
+client_id = configure['forge']['site']['client_id']     # TODO
+client_secret = configure['forge']['site']['client_secret']  # TODO
 
 # functional endpoints
 FORGE_AUTHENTICATION = FORGE_DEV_SITE + "/authentication/v1/authenticate"
@@ -70,24 +79,7 @@ FORGE_DESIGNDATA_METADATA_OBJ_TREE = FORGE_DESIGNDATA + "/{base64_urn}/metadata/
 FORGE_DESIGNDATA_METADATA_OBJ_PROPERTY = FORGE_DESIGNDATA + "/{base64_urn}/metadata/{guid}/properties"
 
 ################################################################################
-
-#random number Generator Thread
-# thread = Thread()
-# thread_stop_event = Event()
-
-# def randomNumberGenerator():
-#     """
-#     Generate a random number every 1 second and emit to a socketio instance (broadcast)
-#     Ideally to be run in a separate thread?
-#     """
-#     #infinite loop of magical random numbers
-#     print("Making random numbers")
-#     while not thread_stop_event.isSet():
-#         number = round(random()*10, 3)
-#         print(number, flush=True)
-#         socketio.emit('newnumber', {'number': number, 'time': time.strftime("%Y-%b-%d %H:%M:%S", time.localtime((time.time())))}, namespace='/update_forge_status')
-#         socketio.sleep(5)
-
+################            Flask Route              ###########################
 ################################################################################
 @app.route("/sg_version", methods = ['GET', 'POST'])
 def ami_endpoint():
@@ -95,12 +87,6 @@ def ami_endpoint():
     AMI TEST in version entity
     '''
     return process_versions()
-
-def process_versions():
-    '''
-    AMI TEST in version entity
-    '''
-    return request.form
 
 @app.route("/view_parts", methods = ['GET', 'POST'])
 def view_parts():
@@ -130,8 +116,192 @@ def view_parts():
             obj_ids = objectid +  "," + leaf_ids
 
     return redirect(url_for('forge_viewer_ids', forge_urn=forge_urn, ids=obj_ids, _external=True, _scheme='https'))
+       
+@app.route("/sg_asset", methods = ['GET', 'POST'])
+def ami_asset_endpoint():
+    '''
+    AMI for Shotgun Asset entity, get forge urn and query objectid from Forge and update task entity.
+    '''
+    data = request.form
+    id = data["selected_ids"]
+    if id.isnumeric():
+        objects = get_objects(int(id))
+        html = objects
+    else:
+        html = render_template('%s.html' % 'message', message = "Please select just one asset")
+    return html
+
+@app.route("/", methods = ['GET', 'POST'])
+def home():
+    '''
+    Show introduction
+    '''
+    this_site = 'https://%s' % request.host
+    homehtml = render_template('%s.html' % 'index', this_site_url = this_site)
+    return homehtml
+
+@app.route("/<string:page_name>", methods = ['GET', 'POST'])
+def no_urn_1(page_name):
+    '''
+    If the page isn't find. Show introduction
+    '''
+    this_site = 'https://%s' % request.host
+    homehtml = render_template('%s.html' % 'index', this_site_url = this_site)
+    return homehtml
+
+@app.route("/<string:page_name>/", methods = ['GET', 'POST'])
+def no_urn_2(page_name):
+    '''
+    If the page isn't find. Show introduction
+    '''
+    this_site = 'https://%s' % request.host
+    homehtml = render_template('%s.html' % 'index', this_site_url = this_site)
+    return homehtml
+
+@app.route("/forge_viewer/<string:forge_urn>", methods = ['GET', 'POST'])
+def forge_viewer(forge_urn):
+    '''
+    Show model in forge viewer
+    '''
+    ids = ""
+    return render_template('%s.html' % 'forge_viewer', sg_site = SERVER_PATH, sg_script=SCRIPT_NAME, sg_key = SCRIPT_KEY, forge_site= FORGE_SITE, forge_urn=forge_urn, ids=ids)
+
+@app.route("/forge_viewer/<string:forge_urn>/<string:ids>", methods = ['GET', 'POST'])
+def forge_viewer_ids(forge_urn, ids):
+    '''
+    Show selected objectids in forge viewer
+    '''
+    ids = ids
+    return render_template('%s.html' % 'forge_viewer',sg_site = SERVER_PATH, sg_script=SCRIPT_NAME, sg_key = SCRIPT_KEY, forge_site= FORGE_SITE,  forge_urn=forge_urn, ids=ids)
+
+@app.route("/review_notes", methods = ['GET', 'POST'])
+def ami_asset_review_notes_endpoint():
+    '''
+    AMI for Shotgun Asset entity, show review snapshot
+    '''
+    data = request.form
+    print("%s" % str(data), flush=True)
+    id = data["selected_ids"]
+    print("%s" % str(id), flush=True)
+    if id.isnumeric():
+        objects = get_asset_review_snapshot(int(id))
+        print("%s" % str(objects), flush=True)
+        html = objects
+    else:
+        html = render_template('%s.html' % 'message', message = "Please select just one asset")
+    return html
+
+@app.route("/review", methods = ['GET', 'POST'])
+def ami_asset_review_endpoint():
+    '''
+    AMI for Shotgun Asset entity, start review page.
+    '''
+    data = request.form
+    print("%s" % str(data), flush=True)
+    id = data["selected_ids"]
+    print("%s" % str(id), flush=True)
+    if id.isnumeric():
+        objects = get_asset_forge_urn(int(id))
+        print("%s" % str(objects), flush=True)
+        html = objects
+    else:
+        html = render_template('%s.html' % 'message', message = "Please select just one asset")
+    return html
+
+@app.route("/forge_review_notes", methods = ['POST'])
+def forge_review_notes():
+    '''
+    Submit review notes and snapshot to shotgun
+    '''
+    image_dir="images/"
+    if request.method == 'POST':
+        # asset_id = request.form["asset_id"]
+        # image_data = request.form["image_base64"].split(";")[1]
+        # image_base64 = request.form["image_base64"].split(",")[1]
+        # filename = os.path.join(image_dir, ("%s.txt" % asset_id))
+        # print(filename, flush=True)
+        # print(type(image_data.encode()), flush=True)
+        # print(type(image_data), flush=True)
+        # with open(filename, "w") as fh:
+        #     print("filename: %s" % filename, flush=True)
+        #     result = fh.write(image_data)
+        #     print("result: %s" % result, flush=True)
+        html = update_asset_note(request.form["image_base64"], request.form["asset_id"])
+        return str(html)
+        #html = render_template('%s.html' % 'message', message = request.form["image_base64"] + " " + request.form["notes"]+ " " + request.form["asset_id"])
+        # return ('<html><head></head><body><img src="%s"></body></html>' % request.form["image_base64"])
+
+@app.route("/forge_viewer_snap/<string:forge_urn>/<string:asset_id>", methods = ['GET', 'POST'])
+def forge_viewer_snap(forge_urn, asset_id):
+    '''
+    Forge viewer with snap shot
+    '''
+    return render_template('%s.html' % 'forge_viewer_snap', forge_site= FORGE_SITE, forge_urn=forge_urn, asset_id = asset_id)
+
+@app.route('/upload', methods=['GET', 'POST'])
+def upload_file():
+    '''
+    Upload to forge and trigger convert to svf
+    '''
+    if request.method == 'POST':
+        # check if the post request has the file part
+        if 'file' not in request.files:
+            flash('No file part')
+            return redirect(request.url)
+        file = request.files['file']
+        # if user does not select file, browser also
+        # submit an empty part without filename
+        if file.filename == '':
+            flash('No selected file')
+            return redirect(request.url)
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            CreateNewDir()
+            global UPLOAD_FOLDER 
+            file_saved = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(file_saved)
+            print(filename)
+            if filename.rsplit('.', 1)[1].lower() == 'obj':
+                urn = submit_to_forge_obj(file_saved, filename)
+            elif filename.rsplit('.', 1)[1].lower() == 'rvt':
+                urn = submit_to_forge_revit(file_saved, filename)
+            if os.path.isfile(file_saved):
+              os.remove(file_saved)
+            if os.path.isdir(UPLOAD_FOLDER):
+              os.rmdir(UPLOAD_FOLDER)
+            
+            # return ('<p>File: {filename} </p><br/><p>Forge URN: {forge_urn}</p>'.format(filename=filename, forge_urn=urn))
+            return redirect(url_for('uploaded_file', filename=filename, forge_urn=urn))
+    return render_template('%s.html' % 'upload')
+
+@app.route('/uploaded', methods=['GET', 'POST'])
+def uploaded_file():
+    '''
+    Upload finished.
+    '''
+    filename = request.args.get("filename")
+    forge_urn = request.args.get("forge_urn")
+    return render_template('%s.html' % 'uploaded', filename=filename, forge_urn=forge_urn)
+
+@app.route("/token", methods = ['GET', 'POST'])
+def forge_token():
+  # NOTE: there is a lack of proper authentication here. You'll need
+  # to consider where and how you might run code like this. You should
+  # never expose access tokens on a non secure connection or on a
+  # non-private network. This is purely for demo purposes and should
+  # not be considered ready for production
+  # end_headers()
+  return get_forge_access_token(), 200
+
+
+################################################################################
+################          Other Functions            ###########################
+################################################################################
 
 def get_leaf_objects(objs):
+    '''
+    Get entire leaf objects under a selected object
+    '''
     print(objs, flush=True)
     print(len(objs))
     ids = ""
@@ -158,20 +328,16 @@ def get_leaf_objects(objs):
                 else:
                     ids = str(obs["objectid"]) + "," + ids
         return ids
-       
-@app.route("/sg_asset", methods = ['GET', 'POST'])
-def ami_asset_endpoint():
+
+################################################################################
+################                Shotgun Python API      ########################
+################################################################################
+
+def process_versions():
     '''
-    AMI for Shotgun Asset entity, get forge urn and query objectid from Forge and update task entity.
+    AMI TEST in version entity
     '''
-    data = request.form
-    id = data["selected_ids"]
-    if id.isnumeric():
-        objects = get_objects(int(id))
-        html = objects
-    else:
-        html = render_template('%s.html' % 'message', message = "Please select just one asset")
-    return html
+    return request.form
 
 def get_asset_forge_urn(id):
     '''
@@ -292,114 +458,9 @@ def update_asset_tasks(asset_id, objects, project):
     html = render_template('%s.html' % 'message', message = "Asset objects are created. Please refresh Tasks to show objectids.")
     return html
 
-@app.route("/", methods = ['GET', 'POST'])
-def home():
-    '''
-    Show introduction
-    '''
-    this_site = 'https://%s' % request.host
-    homehtml = render_template('%s.html' % 'index', this_site_url = this_site)
-    return homehtml
-
-@app.route("/<string:page_name>", methods = ['GET', 'POST'])
-def no_urn_1(page_name):
-    '''
-    If the page isn't find. Show introduction
-    '''
-    this_site = 'https://%s' % request.host
-    homehtml = render_template('%s.html' % 'index', this_site_url = this_site)
-    return homehtml
-
-@app.route("/<string:page_name>/", methods = ['GET', 'POST'])
-def no_urn_2(page_name):
-    '''
-    If the page isn't find. Show introduction
-    '''
-    this_site = 'https://%s' % request.host
-    homehtml = render_template('%s.html' % 'index', this_site_url = this_site)
-    return homehtml
-
-@app.route("/forge_viewer/<string:forge_urn>", methods = ['GET', 'POST'])
-def forge_viewer(forge_urn):
-    '''
-    Show model in forge viewer
-    '''
-    ids = ""
-    return render_template('%s.html' % 'forge_viewer', sg_site = SERVER_PATH, sg_script=SCRIPT_NAME, sg_key = SCRIPT_KEY, forge_site= FORGE_SITE, forge_urn=forge_urn, ids=ids)
-
-@app.route("/forge_viewer/<string:forge_urn>/<string:ids>", methods = ['GET', 'POST'])
-def forge_viewer_ids(forge_urn, ids):
-    '''
-    Show selected objectids in forge viewer
-    '''
-    ids = ids
-    return render_template('%s.html' % 'forge_viewer',sg_site = SERVER_PATH, sg_script=SCRIPT_NAME, sg_key = SCRIPT_KEY, forge_site= FORGE_SITE,  forge_urn=forge_urn, ids=ids)
-
-
-@app.route("/review_notes", methods = ['GET', 'POST'])
-def ami_asset_review_notes_endpoint():
-    '''
-    AMI for Shotgun Asset entity, show review snapshot
-    '''
-    data = request.form
-    print("%s" % str(data), flush=True)
-    id = data["selected_ids"]
-    print("%s" % str(id), flush=True)
-    if id.isnumeric():
-        objects = get_asset_review_snapshot(int(id))
-        print("%s" % str(objects), flush=True)
-        html = objects
-    else:
-        html = render_template('%s.html' % 'message', message = "Please select just one asset")
-    return html
-
-
-@app.route("/review", methods = ['GET', 'POST'])
-def ami_asset_review_endpoint():
-    '''
-    AMI for Shotgun Asset entity, start review page.
-    '''
-    data = request.form
-    print("%s" % str(data), flush=True)
-    id = data["selected_ids"]
-    print("%s" % str(id), flush=True)
-    if id.isnumeric():
-        objects = get_asset_forge_urn(int(id))
-        print("%s" % str(objects), flush=True)
-        html = objects
-    else:
-        html = render_template('%s.html' % 'message', message = "Please select just one asset")
-    return html
-
-@app.route("/forge_review_notes", methods = ['POST'])
-def forge_review_notes():
-    '''
-    Submit review notes and snapshot to shotgun
-    '''
-    image_dir="images/"
-    if request.method == 'POST':
-        # asset_id = request.form["asset_id"]
-        # image_data = request.form["image_base64"].split(";")[1]
-        # image_base64 = request.form["image_base64"].split(",")[1]
-        # filename = os.path.join(image_dir, ("%s.txt" % asset_id))
-        # print(filename, flush=True)
-        # print(type(image_data.encode()), flush=True)
-        # print(type(image_data), flush=True)
-        # with open(filename, "w") as fh:
-        #     print("filename: %s" % filename, flush=True)
-        #     result = fh.write(image_data)
-        #     print("result: %s" % result, flush=True)
-        html = update_asset_note(request.form["image_base64"], request.form["asset_id"])
-        return str(html)
-        #html = render_template('%s.html' % 'message', message = request.form["image_base64"] + " " + request.form["notes"]+ " " + request.form["asset_id"])
-        # return ('<html><head></head><body><img src="%s"></body></html>' % request.form["image_base64"])
-
-@app.route("/forge_viewer_snap/<string:forge_urn>/<string:asset_id>", methods = ['GET', 'POST'])
-def forge_viewer_snap(forge_urn, asset_id):
-    '''
-    Forge viewer with snap shot
-    '''
-    return render_template('%s.html' % 'forge_viewer_snap', forge_site= FORGE_SITE, forge_urn=forge_urn, asset_id = asset_id)
+################################################################################
+################                Upload File             ########################
+################################################################################
 
 def CreateNewDir():
     '''
@@ -421,66 +482,6 @@ def allowed_file(filename):
     '''
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route('/upload', methods=['GET', 'POST'])
-def upload_file():
-    '''
-    Upload to forge and trigger convert to svf
-    '''
-    if request.method == 'POST':
-        # check if the post request has the file part
-        if 'file' not in request.files:
-            flash('No file part')
-            return redirect(request.url)
-        file = request.files['file']
-        # if user does not select file, browser also
-        # submit an empty part without filename
-        if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            CreateNewDir()
-            global UPLOAD_FOLDER 
-            file_saved = os.path.join(UPLOAD_FOLDER, filename)
-            file.save(file_saved)
-            print(filename)
-            if filename.rsplit('.', 1)[1].lower() == 'obj':
-                urn = submit_to_forge_obj(file_saved, filename)
-            elif filename.rsplit('.', 1)[1].lower() == 'rvt':
-                urn = submit_to_forge_revit(file_saved, filename)
-            if os.path.isfile(file_saved):
-              os.remove(file_saved)
-            if os.path.isdir(UPLOAD_FOLDER):
-              os.rmdir(UPLOAD_FOLDER)
-            
-            # return ('<p>File: {filename} </p><br/><p>Forge URN: {forge_urn}</p>'.format(filename=filename, forge_urn=urn))
-            return redirect(url_for('uploaded_file', filename=filename, forge_urn=urn))
-    return render_template('%s.html' % 'upload')
-
-@app.route('/uploaded', methods=['GET', 'POST'])
-def uploaded_file():
-    '''
-    Upload finished.
-    '''
-    filename = request.args.get("filename")
-    forge_urn = request.args.get("forge_urn")
-    return render_template('%s.html' % 'uploaded', filename=filename, forge_urn=forge_urn)
-
-# @socketio.on('connect', namespace='/update_forge_urn')
-# def test_connect():
-#     # need visibility of the global thread object
-#     global thread
-#     print('Client connected')
-
-#     #Start the random number generator thread only if the thread has not been started before.
-#     if not thread.isAlive():
-#         print("Starting Thread", flush=True)
-#         thread = socketio.start_background_task(randomNumberGenerator)
-
-# @socketio.on('disconnect', namespace='/update_forge_urn')
-# def test_disconnect():
-#     print('Client disconnected', flush=True)
 
 def submit_to_forge_obj(model_path, object_name):
     # TODO: this is executing in the main thread. A better solution would
@@ -722,6 +723,10 @@ def ensure_forge_bucket_exists(access_token):
 
     return True
 
+################################################################################
+################         Get Forge Access Token         ########################
+################################################################################
+
 def get_forge_access_token():
     # TODO: You will first need to register your app with Forge. Once you've
     # done that, you can test your code by including the id/secret here. For
@@ -743,15 +748,46 @@ def get_forge_access_token():
     result.raise_for_status()
     return result.json()["access_token"]
 
-@app.route("/token", methods = ['GET', 'POST'])
-def forge_token():
-  # NOTE: there is a lack of proper authentication here. You'll need
-  # to consider where and how you might run code like this. You should
-  # never expose access tokens on a non secure connection or on a
-  # non-private network. This is purely for demo purposes and should
-  # not be considered ready for production
-  # end_headers()
-  return get_forge_access_token(), 200
+################################################################################
+################          Socket Communication       ###########################
+################################################################################
+
+#random number Generator Thread
+# thread = Thread()
+# thread_stop_event = Event()
+
+# def randomNumberGenerator():
+#     """
+#     Generate a random number every 1 second and emit to a socketio instance (broadcast)
+#     Ideally to be run in a separate thread?
+#     """
+#     #infinite loop of magical random numbers
+#     print("Making random numbers")
+#     while not thread_stop_event.isSet():
+#         number = round(random()*10, 3)
+#         print(number, flush=True)
+#         socketio.emit('newnumber', {'number': number, 'time': time.strftime("%Y-%b-%d %H:%M:%S", time.localtime((time.time())))}, namespace='/update_forge_status')
+#         socketio.sleep(5)
+
+
+# @socketio.on('connect', namespace='/update_forge_urn')
+# def test_connect():
+#     # need visibility of the global thread object
+#     global thread
+#     print('Client connected')
+
+#     #Start the random number generator thread only if the thread has not been started before.
+#     if not thread.isAlive():
+#         print("Starting Thread", flush=True)
+#         thread = socketio.start_background_task(randomNumberGenerator)
+
+# @socketio.on('disconnect', namespace='/update_forge_urn')
+# def test_disconnect():
+#     print('Client disconnected', flush=True)
+
+################################################################################
+################                   Main              ###########################
+################################################################################
 
 if __name__ == "__main__":
     socketio.run(host="0.0.0.0", debug = True)
