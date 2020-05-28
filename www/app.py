@@ -16,6 +16,7 @@ import logging, logging.config
 import yaml
 from logging import StreamHandler
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS, cross_origin
 from random import random
 from threading import Thread, Event
 
@@ -24,7 +25,10 @@ from threading import Thread, Event
 ################################################################################
 
 app = Flask(__name__)
-socketio = SocketIO(app, async_mode=None, logger=True, engineio_logger=True)
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
+
+socketio = SocketIO(app, async_mode="gevent", cors_allowed_origins='*', logger=True, engineio_logger=True)
 ALLOWED_EXTENSIONS = set(['obj', 'rvt'])
 UPLOAD_FOLDER = 'upload_dir/'
 
@@ -275,6 +279,7 @@ def upload_file():
     return render_template('%s.html' % 'upload')
 
 @app.route('/uploaded', methods=['GET', 'POST'])
+# @cross_origin()
 def uploaded_file():
     '''
     Upload finished.
@@ -724,7 +729,7 @@ def ensure_forge_bucket_exists(access_token):
     return True
 
 ################################################################################
-################         Get Forge Access Token         ########################
+################         Get Forge API         ########################
 ################################################################################
 
 def get_forge_access_token():
@@ -739,58 +744,87 @@ def get_forge_access_token():
             "client_id": client_id,
             "client_secret": client_secret,
             "grant_type": "client_credentials",
-            "scope": "data:read data:write bucket:create bucket:read"
+            "scope": "viewables:read data:read data:write data:create data:search bucket:update bucket:delete bucket:create bucket:read"
         },
         headers={
             "Content-Type": "application/x-www-form-urlencoded"
         }
     )
     result.raise_for_status()
+    print(result.json(), flush=True)
     return result.json()["access_token"]
+
+def get_forge_transcoding_status(forge_urn):
+    # TODO: You could wait for the proper status before updating SG. Again,
+    # this is not ideal for the main publish thread. You might consider a
+    # separate service to handle checking for upload status and updating SG.
+    # Leaving this here for reference.
+
+    # poll for completion...
+    # print("Conversion submitted. Polling for completion...", flush=True)
+    
+    forge_token = get_forge_access_token()
+    print( "Token: {token}".format(token=forge_token), flush=True)
+
+    # print("forge token: %s" % (forge_token,), flush=True)
+    result = requests.get(
+        FORGE_DESIGNDATA_MANIFEST.format(base64_urn=forge_urn),
+        headers={
+            "Authorization": "Bearer {access_token}".format(
+                access_token=forge_token
+            )
+        }
+    )
+    print("Conversion status: %s" % (result,), flush=True)
+    # result.raise_for_status()
+    result_data = result.json()
+    for i in result_data:
+        print("key: ", i, "val: ", result_data[i], flush=True)
+    status = result_data["status"]
+    print("Conversion status: %s" % (status,), flush=True)
+
+    return status
 
 ################################################################################
 ################          Socket Communication       ###########################
 ################################################################################
 
-#random number Generator Thread
-# thread = Thread()
-# thread_stop_event = Event()
+@socketio.on('forge event', namespace='/forge_urn_status')
+def test_message(message):
+    forge_urn = message['data']
+    print( forge_urn, flush=True)
+    emit('forge message', {'data': 'Checking Forge conversion status.'})
+    print("Forge URN: {forge_urn}".format(forge_urn = forge_urn), flush=True)
+    status = None
+    while status not in ["success", "failed", "timeout"]:
+        status = get_forge_transcoding_status(forge_urn)
+        emit('forge message', {'data': status})
+        time.sleep(5)
 
-# def randomNumberGenerator():
-#     """
-#     Generate a random number every 1 second and emit to a socketio instance (broadcast)
-#     Ideally to be run in a separate thread?
-#     """
-#     #infinite loop of magical random numbers
-#     print("Making random numbers")
-#     while not thread_stop_event.isSet():
-#         number = round(random()*10, 3)
-#         print(number, flush=True)
-#         socketio.emit('newnumber', {'number': number, 'time': time.strftime("%Y-%b-%d %H:%M:%S", time.localtime((time.time())))}, namespace='/update_forge_status')
-#         socketio.sleep(5)
+@socketio.on('connect', namespace='/forge_urn_status')
+def test_connect():
+    print('Client connected', flush=True)
+    emit('forge response', {'data': 'Connected'})
+    # time.sleep(5)
+    # emit('forge message', {'data': 'hello'})
 
-
-# @socketio.on('connect', namespace='/update_forge_urn')
-# def test_connect():
-#     # need visibility of the global thread object
-#     global thread
-#     print('Client connected')
-
-#     #Start the random number generator thread only if the thread has not been started before.
-#     if not thread.isAlive():
-#         print("Starting Thread", flush=True)
-#         thread = socketio.start_background_task(randomNumberGenerator)
-
-# @socketio.on('disconnect', namespace='/update_forge_urn')
-# def test_disconnect():
-#     print('Client disconnected', flush=True)
+@socketio.on('disconnect', namespace='/forge_urn_status')
+def test_disconnect():
+    print('Client disconnected')
 
 ################################################################################
 ################                   Main              ###########################
 ################################################################################
 
 if __name__ == "__main__":
-    socketio.run(host="0.0.0.0", debug = True)
+    from gevent import pywsgi
+    from geventwebsocket.handler import WebSocketHandler
+    from gevent import monkey
+    monkey.patch_all()
+
+    # socketio.run(host="0.0.0.0", debug = True, policy_server=False, transports='websocket, xhr-polling, xhr-multipart')
+    server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler)
+    server.serve_forever()
     # Setup logging
     # gunicorn_logger = logging.getLogger('gunicorn.error')
     # app.logger.handlers = gunicorn_logger.handlers
